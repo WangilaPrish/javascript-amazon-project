@@ -1,6 +1,7 @@
-import {cart, removeFromCart} from '../data/cart.js';
+import {cart, removeFromCart, calculateCartQuantity, saveToStorage} from '../data/cart.js';
 import {products} from '../data/products.js';
 import { formatCurrency } from './utils/money.js';
+import { updateCartQuantity } from './amazon.js';
 
 
 let cartSummaryHTML = '';
@@ -35,7 +36,7 @@ cart.forEach((cartItem)=> {
                   <span>
                     Quantity: <span class="quantity-label">${cartItem.quantity}</span>
                   </span>
-                  <span class="update-quantity-link link-primary">
+                  <span class="update-quantity-link link-primary js-update-link" data-product-id="${matchingProduct.id}">
                     Update
                   </span>
                   <span class="delete-quantity-link link-primary js-delete-link" data-product-id="${matchingProduct.id}">
@@ -94,12 +95,50 @@ cart.forEach((cartItem)=> {
 });
 document.querySelector('.js-order-summary').innerHTML = cartSummaryHTML
 
+updateCartQuantity();
+
+
 document.querySelectorAll('.js-delete-link').forEach((link) => {
   link.addEventListener('click', () => {
     const productId = link.dataset.productId;
     removeFromCart(productId);
     const container = document.querySelector(`.js-cart-item-container-${productId}`);
     container.remove();
-    console.log(container);
+    updateCartQuantity();
+    
+  });
+});
+document.querySelectorAll('.js-update-link').forEach((link) => {
+  link.addEventListener('click', () => {
+    const productId = link.dataset.productId;
+    console.log('Update clicked for:', productId);
+
+    const container = document.querySelector(`.js-cart-item-container-${productId}`);
+    
+    // Replace the quantity span with an input field + save button
+    const quantityLabel = container.querySelector('.quantity-label');
+    const currentQuantity = quantityLabel.innerText;
+
+    quantityLabel.parentElement.innerHTML = `
+      Quantity: 
+      <input class="js-update-input" data-product-id="${productId}" type="number" value="${currentQuantity}" min="1" style="width: 40px; margin-left: 4px;">
+      <button class="js-save-button link-primary" data-product-id="${productId}">Save</button>
+    `;
+
+    // Add click listener to Save button
+    container.querySelector('.js-save-button').addEventListener('click', () => {
+      const newQuantity = Number(container.querySelector('.js-update-input').value);
+      
+      // Update cart
+      const matchingItem = cart.find((item) => item.productId === productId);
+      if (matchingItem) {
+        matchingItem.quantity = newQuantity;
+        saveToStorage(); // if not already exposed, export this in cart.js
+        updateCartQuantity();
+
+        // Refresh the page or just the quantity display
+        location.reload(); // simple for now
+      }
+    });
   });
 });
