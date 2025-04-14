@@ -2,10 +2,11 @@ import {cart, removeFromCart, calculateCartQuantity, saveToStorage, updateDelive
 import {products, getProduct} from '../../data/products.js';
 import { formatCurrency } from '../utils/money.js';
 import { updateCartQuantity } from '../amazon.js';
-import{ hello} from 'https://unpkg.com/supersimpledev@1.0.1/hello.esm.js';
 import  dayjs  from 'https://unpkg.com/supersimpledev@8.5.0/dayjs/esm/index.js';
-import {deliveryOptions, getDeliveryOption} from '../../data/deliveryOptions.js';
+import {deliveryOptions, getDeliveryOption, calculateDeliveryDate} from '../../data/deliveryOptions.js';
 import { renderPaymentSummary} from './paymentSummary.js'
+import { renderCheckoutHeader } from './checkoutHeader.js';
+import isWeekend from '../../data/deliveryOptions.js';
 
 
 export function renderOrderSummary(){
@@ -18,19 +19,13 @@ cart.forEach((cartItem)=> {
    const matchingProduct = getProduct(productId);
     const deliveryOptionId = cartItem.deliveryOptionId;
     
-    const deliveryOption = getDeliveryOption(deliveryOptionId);
-    const today = dayjs();
-    const deliveryDate = today.add(
-      deliveryOption.deliveryDays,
-      'days'
-    );
-    const dateString = deliveryDate.format('dddd, MMMM D');
+const dateString = calculateDeliveryDate(deliveryOptionId);
 
-    cartSummaryHTML += `
-    <div class="cart-item-container js-cart-item-container-${matchingProduct.id}">
-            <div class="delivery-date">
-              Delivery date: ${dateString}
-            </div>
+cartSummaryHTML += `
+<div class="cart-item-container js-cart-item-container-${matchingProduct.id}">
+        <div class="delivery-date">
+          Delivery date: ${dateString}
+        </div>
 
             <div class="cart-item-details-grid">
               <img class="product-image"
@@ -66,15 +61,28 @@ cart.forEach((cartItem)=> {
           </div>
     `;
 });
+
+function getDeliveryDateSkippingWeekends(deliveryDays) {
+  let date = dayjs();
+  let remainingDays = deliveryDays;
+
+  while (remainingDays > 0) {
+    date = date.add(1, 'day');
+    if (!isWeekend(date)) {
+      remainingDays--;
+    }
+  }
+
+  return date;
+}
+
 function deliveryOptionsHTML(matchingProduct, cartItem){
   let html = '';
 
   deliveryOptions.forEach((deliveryOption) => {
     const today = dayjs();
-    const deliveryDate = today.add(
-      deliveryOption.deliveryDays,
-      'days'
-    );
+    const deliveryDate = getDeliveryDateSkippingWeekends(deliveryOption.deliveryDays);
+
     const dateString = deliveryDate.format('dddd, MMMM D');
     const priceString = deliveryOption.priceCents === 0
     ? 'FREE Shipping'
@@ -108,13 +116,11 @@ document.querySelector('.js-order-summary').innerHTML = cartSummaryHTML
 
 updateCartQuantity();
 
-
 document.querySelectorAll('.js-delete-link').forEach((link) => {
   link.addEventListener('click', () => {
     const productId = link.dataset.productId;
     removeFromCart(productId);
-    const container = document.querySelector(`.js-cart-item-container-${productId}`);
-    container.remove();
+    renderOrderSummary(); // Refresh the order summary
     renderPaymentSummary(); 
     
   });
@@ -160,6 +166,7 @@ document.querySelectorAll('.js-delivery-option').forEach((element) => {
     updateDeliveryOption(productId, deliveryOptionId);
     renderOrderSummary();
     renderPaymentSummary();
+    renderCheckoutHeader();
   });
 });
 }
